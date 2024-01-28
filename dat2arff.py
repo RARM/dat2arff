@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 
 SCRIPT_NAME = os.path.basename(__file__)
 
@@ -16,8 +17,8 @@ def getyorn() -> bool:
         It is True if the user gave a positive response and False if not.
     """
     ans = input()
-    while (ans.lower() != 'y' or ans.lower() != 'n'):
-        ans = input("Please, type 'y' or 'n':")
+    while (ans.lower() != 'y' and ans.lower() != 'n'):
+        ans = input("Please, type 'y' or 'n': ")
 
     return True if ans == 'y' else False
 
@@ -45,19 +46,98 @@ def tokenize(filename: str) -> list:
     return tokens
 
 
-def parse_conf(filename: str):
-    pass
+def parse_conf(tokens: list, output_file) -> list:
+    """Parse config tokens, get attributes types, and writes ARFF header section.
+
+    Parameters
+    ----------
+    tokens : list
+        The list of tokens to parse.
+    output_file : TextIOWrapper
+        The opened output file.
+        
+    Returns
+    -------
+    list
+        An array of strings with the attribute types per entries to expect.
+    """
+    parser = ConfParser(tokens, output_file)
+    while parser.has_more_commands():
+        parser.next()
+    output_file.write("\n") # End of ARFF header section.
+    return parser.get_repr()
 
 class ConfParser:
-    def __init__(self):
-        pass
+    """Class used to parse the config file.
+
+    Attributes
+    ----------
+    tokens : list
+        The list of tokens to parse.
+    i : int
+        The index of the token currently reading.
+    line : int
+        The line number currently reading.
+    output_file : TextIOWrapper
+        The opened output file.
+    error : bool
+        State if there is an error reading tokens.
+    repr : list
+        Array of attribute types.
+
+    Methods
+    -------
+    next() : None
+        Read the next line.
+    get_repr() : list
+        Get an array of types expected in the dataset for all entries.
+
+    """
+    def __init__(self, tokens, output_file):
+        """Initialize the configuration parser.
+
+        tokens : list
+            The list of tokens to parse.
+        output_file : TextIOWrapper
+            The opened output file.
+
+        """
+        self.tokens = tokens
+        self.i = 0
+        self.line = 0
+        self.out = output_file
+        self.error = False
+        self.repr = []
+
+    def has_more_commands(self):
+        """Checks whether there are more commands to read."""
+        return self.i < len(self.tokens) and not self.error
+
+    def next(self):
+        """Read the next line in the configuration parser."""
+        token = self.tokens[self.i]
+        if (self.i == 0):
+            self.out.write('@relation ' + token + "\n\n")
+            if self.tokens[1] != "\n":
+                self.error = True
+                print("Error: There was an unexpected token during the relation declaration (config file, line 1).")
+        elif (token == "\n"):
+            self.line += 1
+        else: # Reading attributes.
+            if (token == "numeric" and self.tokens[self.i + 1] != "\n"):
+                self.repr.append(token)
+                attr_type = token
+                self.i += 1
+                token = self.tokens[self.i]
+                self.out.write('@attribute ' + token + ' ' + attr_type + "\n")
+            else:
+                self.error = True
+                print("Error: Invalid attribute declaration in config file. Line", self.line + 1)
+        self.i += 1
     
     def get_repr(self):
-        pass
-
-class ConfRepr:
-    def __init__(self):
-        pass
+        """Get the attributes representation object."""
+        return self.repr
 
 if __name__ == "__main__":
     # Set up and parse the program argument.
@@ -88,7 +168,11 @@ if __name__ == "__main__":
 
     # Read configuration and data files.
     if checked:
-        dat_tokens = tokenize(dat_filename)
         conf_tokens = tokenize(conf_filename)
+        dat_tokens = tokenize(dat_filename)
 
     # Generate ARFF file.
+    if checked:
+        with open(output_filename, 'w') as output_file:
+            data_repr = parse_conf(conf_tokens, output_file)
+            # print("Attribute types:", data_repr)

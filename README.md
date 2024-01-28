@@ -77,5 +77,6 @@ Every attribute declaration must first have the type declaration (`numeric` or
     - [ ] Classes.
     - [ ] Strings.
     - [ ] Dates.
+    - [ ] Accepts unknown value (?).
 - [ ] Performs conditional basic type conversion.
     - [ ] Number to two classes.
