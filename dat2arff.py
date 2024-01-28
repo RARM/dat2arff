@@ -184,6 +184,7 @@ class DataParser:
         self.i = 0
         self.line = 0
         self.error = False
+        self.output_file = output_file
         self.repr = repr
         self.data = []
     
@@ -211,6 +212,12 @@ class DataParser:
             self.data.append(entry)
             self.i += 1
             self.line += 1
+
+    def write_out(self):
+        self.output_file.write("@data\n")
+        self.output_file.write("%\n% " + str(self.line) + " instances\n%\n")
+        for entry in self.data:
+            self.output_file.write(', '.join(entry) + "\n")
 
 if __name__ == "__main__":
     # Set up and parse the program argument.
@@ -251,4 +258,5 @@ if __name__ == "__main__":
             data_parser = DataParser(dat_tokens, data_repr, output_file)
             while (data_parser.has_more_data()):
                 data_parser.next()
-            print("Data:", data_parser.data)
+            data_parser.write_out()
+        print("ARFF file generated.")

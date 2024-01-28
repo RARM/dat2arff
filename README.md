@@ -73,7 +73,7 @@ Every attribute declaration must first have the type declaration (`numeric` or
 
 ## Features
 - [ ] Checks attribute types.
-    - [ ] Numeric.
+    - [x] Numeric.
     - [ ] Classes.
     - [ ] Strings.
     - [ ] Dates.
