@@ -45,7 +45,6 @@ def tokenize(filename: str) -> list:
     
     return tokens
 
-
 def parse_conf(tokens: list, output_file) -> list:
     """Parse config tokens, get attributes types, and writes ARFF header section.
 
@@ -89,6 +88,8 @@ class ConfParser:
     -------
     next() : None
         Read the next line.
+    has_more_commands() : bool
+        Check whether there are more commands to read.
     get_repr() : list
         Get an array of types expected in the dataset for all entries.
 
@@ -139,6 +140,78 @@ class ConfParser:
         """Get the attributes representation object."""
         return self.repr
 
+class DataParser:
+    """Module to parser the data using the given configuration.
+
+    Attributes
+    ----------
+    tokens : list
+        The list of tokens to parse.
+    i : int
+        The index of the token currently reading.
+    line : int
+        The line number currently reading.
+    output_file : TextIOWrapper
+        The opened output file.
+    error : bool
+        State if there is an error reading tokens.
+    data : list
+        Array of data entries.
+
+    Methods
+    -------
+    has_more_data() : bool
+        Check if there are more tokens to read and there is no error.
+    next() : None
+        Read the next entry.
+    write_out() : None
+        Write data to ARFF file.
+    """
+    def __init__(self, tokens: list, repr: list, output_file):
+        """Initialize the data parser.
+
+        Arguments
+        ---------
+        tokens : list
+            Tokens to read.
+        repr :  list
+            Expected data types to read in entries.
+        output_file : TextIOWrapper
+            Opened file to write data in ARFF format.
+        
+        """
+        self.tokens = tokens
+        self.i = 0
+        self.line = 0
+        self.error = False
+        self.repr = repr
+        self.data = []
+    
+    def has_more_data(self):
+        """Checks whether there are more commands to read."""
+        return self.i < len(self.tokens) and not self.error
+    
+    def next(self):
+        entry = []
+        for dtype in self.repr:
+            token = self.tokens[self.i]
+            if (dtype == "numeric" and re.match(r"^-?\d+(\.\d+)?$", token)):
+                entry.append(token)
+            else:
+                self.error = True
+                print("Error: Invalid entry in the data file (line " + str(self.line + 1) + ").")
+                break
+            self.i += 1
+        
+        if (not self.error and self.tokens[self.i] != "\n"):
+            self.error = True
+            print("Error: Unexpected token in data file (line " + str(self.line + 1) + ").")
+        
+        if not self.error:
+            self.data.append(entry)
+            self.i += 1
+            self.line += 1
+
 if __name__ == "__main__":
     # Set up and parse the program argument.
     parser = argparse.ArgumentParser()
@@ -175,4 +248,7 @@ if __name__ == "__main__":
     if checked:
         with open(output_filename, 'w') as output_file:
             data_repr = parse_conf(conf_tokens, output_file)
-            # print("Attribute types:", data_repr)
+            data_parser = DataParser(dat_tokens, data_repr, output_file)
+            while (data_parser.has_more_data()):
+                data_parser.next()
+            print("Data:", data_parser.data)
