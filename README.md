@@ -71,12 +71,20 @@ Every attribute declaration must first have the type declaration (`numeric` or
 #### Class
 [Description.]
 
-## Features
+## Features Roadmap
 - [ ] Checks attribute types.
-    - [x] Numeric.
-    - [ ] Classes.
-    - [ ] Strings.
-    - [ ] Dates.
-    - [ ] Accepts unknown value (?).
+  - [x] Numeric.
+  - [ ] Classes.
+  - [ ] Strings.
+  - [ ] Dates.
+  - [ ] Accepts unknown value (?).
+- [ ] Perform data transformations.
+  - [ ]  Basic Attributes manipulation.
+    - [ ] Hide attributes.
+    - [ ] Create attributes.
+  - [ ] Conditional number-to-class transformation.
+    - [ ] Simple two classes transformation.
+  - [ ] Conditional class-to-number transformation.
+    - [ ] Simple single class to two numbers transformation.
 - [ ] Performs conditional basic type conversion.
-    - [ ] Number to two classes.
+  - [ ] Number to two classes.
