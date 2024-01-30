@@ -75,6 +75,8 @@ class ConfParser:
         The list of tokens to parse.
     i : int
         The index of the token currently reading.
+    current : string
+        String represeting the current token.
     line : int
         The line number currently reading.
     output_file : TextIOWrapper
@@ -86,10 +88,20 @@ class ConfParser:
 
     Methods
     -------
-    next() : None
-        Read the next line.
     has_more_commands() : bool
         Check whether there are more commands to read.
+    next() : None
+        Read the next line.
+    get_attr_vis(token: str) : str
+        Get a string represting the visibility command of attribute.
+    get_attr_type() : str
+        Returns string representing the ARFF attribute type.
+    get_next_token() : bool
+        Updates current token (and index) checking it is not a new line.
+    end_line() : bool
+        Update current token to the first one of next line. Expect new line.
+    get_create_expr() : dict
+        Get the transformation condition.
     get_repr() : list
         Get an array of types expected in the dataset for all entries.
 
@@ -104,7 +116,7 @@ class ConfParser:
 
         """
         self.tokens = tokens
-        self.i = 0
+        self.i = -1 # First call to get_next_token() will set it to 0.
         self.line = 0
         self.out = output_file
         self.error = False
@@ -115,30 +127,113 @@ class ConfParser:
         return self.i < len(self.tokens) and not self.error
 
     def next(self):
-        """Read the next line in the configuration parser."""
-        token = self.tokens[self.i]
-        if (self.i == 0):
-            self.out.write('@relation ' + token + "\n\n")
-            if self.tokens[1] != "\n":
-                self.error = True
-                print("Error: There was an unexpected token during the relation declaration (config file, line 1).")
-        elif (token == "\n"):
-            self.line += 1
+        """Read the next line in the configuration file."""
+        self.line += 1
+        self.get_next_token()
+        if (self.line == 1):
+            self.out.write('@relation ' + self.current + "\n\n")
+            self.end_line()
         else: # Reading attributes.
-            if (token == "numeric" and self.tokens[self.i + 1] != "\n"):
-                self.repr.append(token)
-                attr_type = token
-                self.i += 1
-                token = self.tokens[self.i]
-                self.out.write('@attribute ' + token + ' ' + attr_type + "\n")
-            else:
-                self.error = True
-                print("Error: Invalid attribute declaration in config file. Line", self.line + 1)
-        self.i += 1
+            attr_vis = self.get_attr_vis(self.current)
+            attr_name = self.current if attr_vis == "keep" else self.current[1:]
+            
+            self.get_next_token()
+            if self.error : return
+            attr_type = self.get_attr_type()
+
+            extra = ""
+            if attr_vis == "create":
+                self.get_next_token()
+                extra = self.get_create_expr()
+                if self.error: return
+            elif attr_type == "nominal":
+                self.get_next_token()
+                extra = self.get_nominals()
+                if self.error: return
+            
+            attr_repr = AttrRepr(attr_name, attr_vis, attr_type, extra)
+            self.repr.append(attr_repr)
+            
+            self.out.write('@attribute ' + attr_name + ' ' + attr_type + "\n")
+
+    def get_attr_vis(self, token: str):
+        cmd = "keep"
+        if (token[0] == "+"): cmd = "create"
+        elif (token[0] == "-"): cmd = "hide"
+        return cmd
+
+    def get_attr_type(self):
+        token = self.current.lower()
+        if token != "numeric" and token != "nominal":
+            self.error = True
+            print("Error: Unknown attribute type in configuration file (line " + self.line + ").")
+            token = ""
+        return token
+
+    def get_next_token(self) -> None:
+        if self.tokens[self.i + 1] == "\n":
+            print("Error: Unexpected end of line in configuration file (line " + str(self.line) + ").")
+            self.error = True
+        else:
+            self.i += 1
+            self.current = self.tokens[self.i]
+
+    def end_line(self) -> None:
+        if self.tokens[self.i + 1] != "\n":
+            print("Error: Unexpected token in configuration file (line " + str(self.line) + ")")
+            self.error = True
+        else:
+            self.i += 1
+            self.current = self.tokens[self.i]
     
+    def get_create_expr(self) -> dict:
+        token = self.current
+        create_expr = {}
+
+        # Getting tokens when transforming number to nominal.
+        if re.match(r"^[a-zA-Z_]\w*([<>=]|<=|>=)[0-9]+(\.[0-9]+)?\?[a-zA-Z_]\w*:[a-zA-Z_]\w*$", token):
+            end_of_comp_pos = re.search(r"\?", expr).start(0)
+            
+            comparison = expr[:end_of_comp_pos]
+            results = expr[end_of_comp_pos + 1:]
+
+            comp_op_reg = re.search(r"([<>=]|<=|>=)", comparison)
+            comp_op = comp_op_reg.group(0)
+            comp_op_pos = comp_op_reg.start(0)
+            attr_name = comparison[:comp_op_pos]
+            comp_to = comparison[comp_op_pos + 1:]
+
+            res_sep_pos = re.search(r":", results).start(0)
+            rit = results[:res_sep_pos]
+            rif = results[res_sep_pos + 1:]
+
+            create_expr = {
+                "attr_name": attr_name,
+                "comp_op": comp_op,
+                "comp_to": comp_to,
+                "if_true": rit,
+                "if_false": rif
+            }
+        else:
+            self.error = true
+            print("Error: Invalid transformation expression in the configuration file (line " + self.line + ").")
+        return create_expr
+
+    def get_nominals(self) -> list:
+        nominals = []
+
+        return nominals
+
     def get_repr(self):
         """Get the attributes representation object."""
         return self.repr
+
+class AttrRepr:
+    def __init__(self, name: str, visibility: str, attr_type: str, extra: str):
+        self.name = name
+        self.visibility = visibility
+        self.attr_type = attr_type
+        self.extra = extra
 
 class DataParser:
     """Module to parser the data using the given configuration.

@@ -85,6 +85,6 @@ Every attribute declaration must first have the type declaration (`numeric` or
   - [ ] Conditional number-to-class transformation.
     - [ ] Simple two classes transformation.
   - [ ] Conditional class-to-number transformation.
-    - [ ] Simple single class to two numbers transformation.
+    - [ ] Simple single class to two numbers transformation. (E.g., `nom>5?true:false`)
 - [ ] Performs conditional basic type conversion.
   - [ ] Number to two classes.
