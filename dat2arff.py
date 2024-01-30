@@ -146,7 +146,7 @@ class ConfParser:
                 self.get_next_token()
                 extra = self.get_create_expr()
                 if self.error: return
-            elif attr_type == "nominal":
+            elif attr_type == "nominals":
                 self.get_next_token()
                 extra = self.get_nominals()
                 if self.error: return
@@ -154,7 +154,8 @@ class ConfParser:
             attr_repr = AttrRepr(attr_name, attr_vis, attr_type, extra)
             self.repr.append(attr_repr)
             
-            self.out.write('@attribute ' + attr_name + ' ' + attr_type + "\n")
+            if attr_vis != 'hide':
+                self.out.write('@attribute ' + attr_name + ' ' + attr_type + "\n")
         self.end_line()
 
     def get_attr_vis(self, token: str):
@@ -181,7 +182,7 @@ class ConfParser:
 
     def end_line(self) -> None:
         if self.tokens[self.i + 1] != "\n":
-            print("Error: Unexpected token in configuration file (line " + str(self.line) + ")")
+            print("Error: Unexpected token in configuration file (line " + str(self.line) + "). Got '" + self.tokens[self.i + 1] + "' when expecting new line.")
             self.error = True
         else:
             self.i += 1
@@ -193,16 +194,20 @@ class ConfParser:
 
         # Getting tokens when transforming number to nominal.
         if re.match(r"^[a-zA-Z_]\w*([<>=]|<=|>=)[0-9]+(\.[0-9]+)?\?[a-zA-Z_]\w*:[a-zA-Z_]\w*$", token):
-            end_of_comp_pos = re.search(r"\?", expr).start(0)
+            end_of_comp_pos = re.search(r"\?", token).start(0)
             
-            comparison = expr[:end_of_comp_pos]
-            results = expr[end_of_comp_pos + 1:]
+            comparison = token[:end_of_comp_pos]
+            results = token[end_of_comp_pos + 1:]
 
             comp_op_reg = re.search(r"([<>=]|<=|>=)", comparison)
             comp_op = comp_op_reg.group(0)
             comp_op_pos = comp_op_reg.start(0)
             attr_name = comparison[:comp_op_pos]
-            comp_to = comparison[comp_op_pos + 1:]
+            
+            if re.match(r"^[0-9]+$", comparison[comp_op_pos + 1:]):
+                comp_to = int(comparison[comp_op_pos + 1:])
+            else:
+                comp_to = float(comparison[comp_op_pos + 1:])
 
             res_sep_pos = re.search(r":", results).start(0)
             rit = results[:res_sep_pos]
@@ -223,8 +228,8 @@ class ConfParser:
     def get_nominals(self) -> list:
         nominals = []
         
-        if re.match(r"^{[a-zA-Z_]\w*(,[a-zA-Z_]\w*)*}$", expr):
-            nominals = expr[1:-1].split(',')
+        if re.match(r"^{[a-zA-Z_]\w*(,[a-zA-Z_]\w*)*}$", self.current):
+            nominals = self.current[1:-1].split(',')
         else:
             self.error = True
             print("Error: Invalid declaration of nominals in configuration file (line " + str(self.line) + ").")
@@ -309,11 +314,18 @@ class DataParser:
 
         col = 0
         for attr_repr in self.repr:
+            if attr_repr.visibility == 'create': continue
             self.get_next_token()
             col += 1
-            if attr_repr.visibility == 'create': continue
-            elif attr_repr.attr_type == 'numeric': entry.append(self.get_num(col, attr_repr.name))
-            elif attr_repr.attr_type == 'nominals': entry.append(self.get_nominal(attr_repr.extra, col, attr_repr.name))
+            
+            if attr_repr.attr_type == 'numeric':
+                num = self.get_num(col, attr_repr.name)
+                if self.error: return
+                entry.append(num)
+            elif attr_repr.attr_type == 'nominals':
+                nom = self.get_nominal(attr_repr.extra, col, attr_repr.name)
+                if self.error: return
+                entry.append(nom)
         
         if not self.error:
             self.data.append(entry)
@@ -325,17 +337,18 @@ class DataParser:
         else:
             self.error = True
             print("Error: Invalid nominal value '" + attr_name + "' in data file (line " + str(self.line) + "; element " + str(col) + ").")
+        return nominal
 
     def get_num(self, col: int, attr_name: str):
         if re.match(r"^-?\d+$", self.current): return int(self.current)
         elif re.match(r"^-?\d+(?:\.\d+)?$", self.current): return float(self.current)
         else:
             self.error = True
-            print("Error: Value '" + attr_name + "' in data file (line " + str(self.line) + ")")
+            print("Error: Value '" + attr_name + "' in data file (line " + str(self.line) + "; value '" + self.current + "').")
 
     def get_next_token(self) -> None:
         if self.tokens[self.i + 1] == "\n":
-            print("Error: Unexpected end of line in data file (line " + str(self.line) + ").")
+            print("Error: Unexpected end of line in data file (line " + str(self.line) + "; after '" + self.current + "').")
             self.error = True
         else:
             self.i += 1
@@ -355,32 +368,74 @@ class DataParser:
         self.output_file.write("%\n% " + str(instances) + " instances\n%\n")
 
         # FIXME: Update target indexes for create attributes.
+        for i in range(len(self.repr)):
+            if self.repr[i].visibility == 'create': self.update_target_index_of(i)
+        if self.error: return
 
         for entry in self.data:
             first_attr = True
             entry_i = 0
             for repr in self.repr:
-                if not first_attr: self.output_file.write(', ')
+                if not first_attr and repr.visibility != 'hide': self.output_file.write(', ')
                 if first_attr and repr.visibility != 'hide': first_attr = False
                 
                 if repr.visibility == 'hide':
                     entry_i += 1
                     continue
                 elif repr.visibility == 'create': # FIXME: Complete transformation data implementation.
-                    print('Error: Missing implementation of data transformation. Halting.')
-                    self.error = True
-                    return
+                    val = self.get_transformation_value(repr, self.repr[repr.target_i].attr_type, entry)
+                    if self.error: return
+                    self.output_file.write(str(val))
                 else:
                     self.output_file.write(str(entry[entry_i]))
                     entry_i += 1
             self.output_file.write("\n")
+    
+    def update_target_index_of(self, repr_to_update_i):
+        target_attr = self.repr[repr_to_update_i].extra['attr_name']
+        found = False
+        
+        for i in range(len(self.repr)):
+            if self.repr[i].name == target_attr:
+                self.repr[repr_to_update_i].target_i = i
+                found = True
+        
+        if not found:
+            print("Error: Could not find attribute '" + target_attr + "' in transformation for attribute '" + self.repr[repr_to_update_i].name + "'.")
+            self.error = True
+
+    def get_transformation_value(self, repr, target_type: str, row: list):
+        if target_type != 'numeric':
+            self.error = True
+            print("Error: Invalid data type in attribute '" + repr.extra['attr_name'] + "', was expecting a numeric for transformation (it is '" + target_type + "' instead).")
+            return
+
+        left_op = row[repr.target_i]
+        right_op = repr.extra['comp_to']
+        operand = repr.extra['comp_op']
+        is_true = False
+        if operand == '=': is_true = left_op == right_op
+        elif operand == '<': is_true = left_op < right_op
+        elif operand == '>': is_true = left_op > right_op
+        elif operand == '>=': is_true = left_op >= right_op
+        elif operand == '<=': is_true = left_op >= right_op
+        else:
+            self.error = True
+            print("Error: Unhandled comparison operator '" + operand + "' in transformation function.")
+            return
+
+        return repr.extra['if_true'] if is_true else repr.extra['if_false']
+
+    def is_numeric(self, token):
+        return True if re.match(r"^[0-9]+(\.[0-9]+)?$", token) else False
+
 
 if __name__ == "__main__":
     # Set up and parse the program argument.
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--output", help="specify output file", metavar="file")
-    parser.add_argument("-c", "--config", required=True, help="configuration file for the data", metavar="config_file")
     parser.add_argument("dat_file", help="path to raw data file to convert to arff")
+    parser.add_argument("config", help="configuration file for the data", metavar="config_file")
     args = parser.parse_args()
 
     # Perform secondary argument checking.
@@ -413,8 +468,8 @@ if __name__ == "__main__":
             data_repr,err = parse_conf(conf_tokens, output_file)
             if not err:
                 data_parser = DataParser(dat_tokens, data_repr, output_file)
-                while (data_parser.has_more_data()):
+                while (data_parser.has_more_data() and not data_parser.error):
                     data_parser.next()
                 if not data_parser.error:
                     data_parser.write_out()
-                print("ARFF file generated.")
+                    if data_parser.error: print("ARFF file generated.")

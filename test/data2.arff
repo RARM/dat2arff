@@ -1,0 +1,13 @@
+@relation people
+
+@attribute age numeric
+@attribute favcolor nominals
+@attribute cool nominals
+
+@data
+%
+% 3 instances
+%
+23, blue, notcool
+17, red, notcool
+18, green, cool
