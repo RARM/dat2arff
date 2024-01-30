@@ -221,7 +221,12 @@ class ConfParser:
 
     def get_nominals(self) -> list:
         nominals = []
-
+        
+        if re.match(r"^{[a-zA-Z_]\w*(,[a-zA-Z_]\w*)*}$", expr):
+            nominals = expr[1:-1].split(',')
+        else:
+            self.error = True
+            print("Error: Invalid declaration of nominals in configuration file (line " + self.line + ").")
         return nominals
 
     def get_repr(self):

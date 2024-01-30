@@ -32,20 +32,37 @@ def get_create_expr(token) -> dict:
         pass
     return create_expr
 
+def print_transformation_evaluation(expr):
+    if re.match(r"^[a-zA-Z_]\w*([<>=]|<=|>=)[0-9]+(\.[0-9]+)?\?[a-zA-Z_]\w*:[a-zA-Z_]\w*$", expr):
+        print("Transformation expression OK.")
+        
+        expr_dict = get_create_expr(expr)
+        print("Attribute to compare: '" + expr_dict["attr_name"] + "'")
+        print("Comparison operator '" + expr_dict["comp_op"] + "'")
+        print("Comparing to: '" + expr_dict["comp_to"] + "'")
+        print("Result if true: '" + expr_dict["if_true"] + "'")
+        print("Result if false: '" + expr_dict["if_false"] + "'")
+
+    else:
+        print("Error: It is not a valid transformation expression.")
+
+def print_nominals(expr):
+    if re.match(r"^{[a-zA-Z_]\w*(,[a-zA-Z_]\w*)*}$", expr):
+        nominals = expr[1:-1].split(',')
+        print("Nominals expression OK.")
+        print("Nominals:", nominals)
+    else:
+        print("Error: It is not a valid array of nominals.")
+
 parser = argparse.ArgumentParser()
+parser.add_argument("kind", choices=['transformation', 'nominals'], help="Specify what kind of expression will be tested.")
 parser.add_argument("expression", help="Expression to check.")
 args = parser.parse_args()
 expr = args.expression
 
-if re.match(r"^[a-zA-Z_]\w*([<>=]|<=|>=)[0-9]+(\.[0-9]+)?\?[a-zA-Z_]\w*:[a-zA-Z_]\w*$", expr):
-    print("Expression OK.")
-    
-    expr_dict = get_create_expr(expr)
-    print("Attribute to compare: '" + expr_dict["attr_name"] + "'")
-    print("Comparison operator '" + expr_dict["comp_op"] + "'")
-    print("Comparing to: '" + expr_dict["comp_to"] + "'")
-    print("Result if true: '" + expr_dict["if_true"] + "'")
-    print("Result if false: '" + expr_dict["if_false"] + "'")
-
+if args.kind == 'transformation':
+    print_transformation_evaluation(expr)
+elif args.kind == 'nominals':
+    print_nominals(expr)
 else:
-    print("Error: Expression didn't match.")
+    print("Error: Unknown kind.")
