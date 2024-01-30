@@ -240,6 +240,7 @@ class AttrRepr:
         self.visibility = visibility
         self.attr_type = attr_type
         self.extra = extra
+        self.target_i = -1
 
 class DataParser:
     """Module to parser the data using the given configuration.
@@ -248,6 +249,8 @@ class DataParser:
     ----------
     tokens : list
         The list of tokens to parse.
+    repr :  list
+        Expected data types to read in entries.
     i : int
         The index of the token currently reading.
     current : str
@@ -347,14 +350,30 @@ class DataParser:
             self.current = self.tokens[self.i]
 
     def write_out(self):
-        print("Entries parsed:")
-        print(self.data)
+        instances = self.line
+        self.output_file.write("@data\n")
+        self.output_file.write("%\n% " + str(instances) + " instances\n%\n")
 
-        # FIXME: Rewrite this section.
-        # self.output_file.write("@data\n")
-        # self.output_file.write("%\n% " + str(self.line) + " instances\n%\n")
-        # for entry in self.data:
-        #     self.output_file.write(', '.join(entry) + "\n")
+        # FIXME: Update target indexes for create attributes.
+
+        for entry in self.data:
+            first_attr = True
+            entry_i = 0
+            for repr in self.repr:
+                if not first_attr: self.output_file.write(', ')
+                if first_attr and repr.visibility != 'hide': first_attr = False
+                
+                if repr.visibility == 'hide':
+                    entry_i += 1
+                    continue
+                elif repr.visibility == 'create': # FIXME: Complete transformation data implementation.
+                    print('Error: Missing implementation of data transformation. Halting.')
+                    self.error = True
+                    return
+                else:
+                    self.output_file.write(str(entry[entry_i]))
+                    entry_i += 1
+            self.output_file.write("\n")
 
 if __name__ == "__main__":
     # Set up and parse the program argument.
