@@ -64,7 +64,7 @@ def parse_conf(tokens: list, output_file) -> list:
     while parser.has_more_commands():
         parser.next()
     output_file.write("\n") # End of ARFF header section.
-    return parser.get_repr()
+    return parser.get_repr(), parser.error
 
 class ConfParser:
     """Class used to parse the config file.
@@ -125,7 +125,7 @@ class ConfParser:
 
     def has_more_commands(self):
         """Checks whether there are more commands to read."""
-        return self.i < len(self.tokens) and not self.error
+        return self.i + 1 < len(self.tokens) and not self.error
 
     def next(self):
         """Read the next line in the configuration file."""
@@ -259,7 +259,7 @@ class DataParser:
     error : bool
         State if there is an error reading tokens.
     data : list
-        Array of data entries.
+        Array of parsed data entries.
 
     Methods
     -------
@@ -298,21 +298,19 @@ class DataParser:
     
     def has_more_data(self):
         """Checks whether there are more commands to read."""
-        return self.i < len(self.tokens) and not self.error
+        return self.i + 1 < len(self.tokens) and not self.error
     
     def next(self):
         self.line +=1
-        self.get_next_token()
         entry = []
 
         col = 0
         for attr_repr in self.repr:
+            self.get_next_token()
             col += 1
             if attr_repr.visibility == 'create': continue
             elif attr_repr.attr_type == 'numeric': entry.append(self.get_num(col, attr_repr.name))
             elif attr_repr.attr_type == 'nominals': entry.append(self.get_nominal(attr_repr.extra, col, attr_repr.name))
-           
-            self.get_next_token()
         
         if not self.error:
             self.data.append(entry)
@@ -325,12 +323,12 @@ class DataParser:
             self.error = True
             print("Error: Invalid nominal value '" + attr_name + "' in data file (line " + str(self.line) + "; element " + str(col) + ").")
 
-    def get_num(self, col: int, attr_name: str) -> int|float|None:
+    def get_num(self, col: int, attr_name: str):
         if re.match(r"^-?\d+$", self.current): return int(self.current)
         elif re.match(r"^-?\d+(?:\.\d+)?$", self.current): return float(self.current)
         else:
             self.error = True
-            print("Error: Value '" +  + "' in data file (line " + str(self.line) + ")")
+            print("Error: Value '" + attr_name + "' in data file (line " + str(self.line) + ")")
 
     def get_next_token(self) -> None:
         if self.tokens[self.i + 1] == "\n":
@@ -349,10 +347,14 @@ class DataParser:
             self.current = self.tokens[self.i]
 
     def write_out(self):
-        self.output_file.write("@data\n")
-        self.output_file.write("%\n% " + str(self.line) + " instances\n%\n")
-        for entry in self.data:
-            self.output_file.write(', '.join(entry) + "\n")
+        print("Entries parsed:")
+        print(self.data)
+
+        # FIXME: Rewrite this section.
+        # self.output_file.write("@data\n")
+        # self.output_file.write("%\n% " + str(self.line) + " instances\n%\n")
+        # for entry in self.data:
+        #     self.output_file.write(', '.join(entry) + "\n")
 
 if __name__ == "__main__":
     # Set up and parse the program argument.
@@ -389,9 +391,11 @@ if __name__ == "__main__":
     # Generate ARFF file.
     if checked:
         with open(output_filename, 'w') as output_file:
-            data_repr = parse_conf(conf_tokens, output_file)
-            data_parser = DataParser(dat_tokens, data_repr, output_file)
-            while (data_parser.has_more_data()):
-                data_parser.next()
-            data_parser.write_out()
-        print("ARFF file generated.")
+            data_repr,err = parse_conf(conf_tokens, output_file)
+            if not err:
+                data_parser = DataParser(dat_tokens, data_repr, output_file)
+                while (data_parser.has_more_data()):
+                    data_parser.next()
+                if not data_parser.error:
+                    data_parser.write_out()
+                print("ARFF file generated.")

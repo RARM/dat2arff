@@ -1,0 +1,8 @@
+@relation relation_name
+
+@attribute val1 numeric
+@attribute val2 numeric
+@attribute val3 numeric
+@attribute val4 numeric
+@attribute val5 numeric
+
