@@ -74,7 +74,7 @@ Every attribute declaration must first have the type declaration (`numeric` or
 ## Features Roadmap
 - [ ] Checks attribute types.
   - [x] Numeric.
-  - [ ] Classes.
+  - [ ] Nominals.
   - [ ] Strings.
   - [ ] Dates.
   - [ ] Accepts unknown value (?).

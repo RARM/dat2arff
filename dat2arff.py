@@ -117,6 +117,7 @@ class ConfParser:
         """
         self.tokens = tokens
         self.i = -1 # First call to get_next_token() will set it to 0.
+        self.current = ''
         self.line = 0
         self.out = output_file
         self.error = False
@@ -132,7 +133,6 @@ class ConfParser:
         self.get_next_token()
         if (self.line == 1):
             self.out.write('@relation ' + self.current + "\n\n")
-            self.end_line()
         else: # Reading attributes.
             attr_vis = self.get_attr_vis(self.current)
             attr_name = self.current if attr_vis == "keep" else self.current[1:]
@@ -155,6 +155,7 @@ class ConfParser:
             self.repr.append(attr_repr)
             
             self.out.write('@attribute ' + attr_name + ' ' + attr_type + "\n")
+        self.end_line()
 
     def get_attr_vis(self, token: str):
         cmd = "keep"
@@ -164,9 +165,9 @@ class ConfParser:
 
     def get_attr_type(self):
         token = self.current.lower()
-        if token != "numeric" and token != "nominal":
+        if token != "numeric" and token != "nominals":
             self.error = True
-            print("Error: Unknown attribute type in configuration file (line " + self.line + ").")
+            print("Error: Unknown attribute type in configuration file (line " + str(self.line) + ").")
             token = ""
         return token
 
@@ -216,7 +217,7 @@ class ConfParser:
             }
         else:
             self.error = true
-            print("Error: Invalid transformation expression in the configuration file (line " + self.line + ").")
+            print("Error: Invalid transformation expression in the configuration file (line " + str(self.line) + ").")
         return create_expr
 
     def get_nominals(self) -> list:
@@ -226,7 +227,7 @@ class ConfParser:
             nominals = expr[1:-1].split(',')
         else:
             self.error = True
-            print("Error: Invalid declaration of nominals in configuration file (line " + self.line + ").")
+            print("Error: Invalid declaration of nominals in configuration file (line " + str(self.line) + ").")
         return nominals
 
     def get_repr(self):
@@ -249,6 +250,8 @@ class DataParser:
         The list of tokens to parse.
     i : int
         The index of the token currently reading.
+    current : str
+        String representing the current token.
     line : int
         The line number currently reading.
     output_file : TextIOWrapper
@@ -264,6 +267,10 @@ class DataParser:
         Check if there are more tokens to read and there is no error.
     next() : None
         Read the next entry.
+    get_next_token() : bool
+        Updates current token (and index) checking it is not a new line.
+    end_line() : bool
+        Update current token to the first one of next line. Expect new line.
     write_out() : None
         Write data to ARFF file.
     """
@@ -281,7 +288,8 @@ class DataParser:
         
         """
         self.tokens = tokens
-        self.i = 0
+        self.i = -1
+        self.current = ""
         self.line = 0
         self.error = False
         self.output_file = output_file
@@ -293,25 +301,52 @@ class DataParser:
         return self.i < len(self.tokens) and not self.error
     
     def next(self):
+        self.line +=1
+        self.get_next_token()
         entry = []
-        for dtype in self.repr:
-            token = self.tokens[self.i]
-            if (dtype == "numeric" and re.match(r"^-?\d+(\.\d+)?$", token)):
-                entry.append(token)
-            else:
-                self.error = True
-                print("Error: Invalid entry in the data file (line " + str(self.line + 1) + ").")
-                break
-            self.i += 1
-        
-        if (not self.error and self.tokens[self.i] != "\n"):
-            self.error = True
-            print("Error: Unexpected token in data file (line " + str(self.line + 1) + ").")
+
+        col = 0
+        for attr_repr in self.repr:
+            col += 1
+            if attr_repr.visibility == 'create': continue
+            elif attr_repr.attr_type == 'numeric': entry.append(self.get_num(col, attr_repr.name))
+            elif attr_repr.attr_type == 'nominals': entry.append(self.get_nominal(attr_repr.extra, col, attr_repr.name))
+           
+            self.get_next_token()
         
         if not self.error:
             self.data.append(entry)
+            self.end_line()
+
+    def get_nominal(self, valid_nominals: list, col: int, attr_name: str):
+        nominal = ''
+        if self.current in valid_nominals: nominal = self.current
+        else:
+            self.error = True
+            print("Error: Invalid nominal value '" + attr_name + "' in data file (line " + str(self.line) + "; element " + str(col) + ").")
+
+    def get_num(self, col: int, attr_name: str) -> int|float|None:
+        if re.match(r"^-?\d+$", self.current): return int(self.current)
+        elif re.match(r"^-?\d+(?:\.\d+)?$", self.current): return float(self.current)
+        else:
+            self.error = True
+            print("Error: Value '" +  + "' in data file (line " + str(self.line) + ")")
+
+    def get_next_token(self) -> None:
+        if self.tokens[self.i + 1] == "\n":
+            print("Error: Unexpected end of line in data file (line " + str(self.line) + ").")
+            self.error = True
+        else:
             self.i += 1
-            self.line += 1
+            self.current = self.tokens[self.i]
+
+    def end_line(self) -> None:
+        if self.tokens[self.i + 1] != "\n":
+            print("Error: Unexpected token in data file (line " + str(self.line) + ")")
+            self.error = True
+        else:
+            self.i += 1
+            self.current = self.tokens[self.i]
 
     def write_out(self):
         self.output_file.write("@data\n")
