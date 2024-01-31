@@ -2,7 +2,7 @@
 
 @attribute age numeric
 @attribute favcolor nominals
-@attribute cool nominals
+@attribute cool {cool,notcool}
 
 @data
 %

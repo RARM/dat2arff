@@ -154,7 +154,9 @@ class ConfParser:
             attr_repr = AttrRepr(attr_name, attr_vis, attr_type, extra)
             self.repr.append(attr_repr)
             
-            if attr_vis != 'hide':
+            if attr_vis == 'create':
+                self.out.write('@attribute ' + attr_name + ' ' + extra['nominals'] + "\n")
+            if attr_vis == 'keep':
                 self.out.write('@attribute ' + attr_name + ' ' + attr_type + "\n")
         self.end_line()
 
@@ -213,12 +215,15 @@ class ConfParser:
             rit = results[:res_sep_pos]
             rif = results[res_sep_pos + 1:]
 
+            nominals = '{' + rit + ',' + rif + '}'
+
             create_expr = {
                 "attr_name": attr_name,
                 "comp_op": comp_op,
                 "comp_to": comp_to,
                 "if_true": rit,
-                "if_false": rif
+                "if_false": rif,
+                "nominals": nominals
             }
         else:
             self.error = true
